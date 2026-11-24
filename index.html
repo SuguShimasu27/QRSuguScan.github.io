@@ -1,77 +1,146 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Code Scanner</title>
-  <!-- Using Cloudflare CDN instead of unpkg -->
-  <script src="https://cloudflare.com"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classroom ID Attendance Scanner</title>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
-      background-color: #f4f4f9;
-      color: #333;
+      padding: 24px;
+      margin: 0;
     }
-    #reader {
+    h1 { font-size: 1.4rem; margin-bottom: 12px; }
+    .scanner-box {
+      position: relative;
       width: 100%;
-      max-width: 400px;
-      background: white;
-      border-radius: 8px;
+      max-width: 480px;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 10px;
+      border: 3px solid #334155;
+      background: #000;
     }
-    #result {
-      margin-top: 1.5rem;
-      padding: 1rem;
+    video {
       width: 100%;
-      max-width: 400px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      word-break: break-all;
-      text-align: center;
-      display: none;
+      display: block;
     }
+    #status {
+      margin-top: 16px;
+      padding: 14px 20px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.1rem;
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+    .success { background: #064e3b !important; border-color: #10b981 !important; color: #a7f3d0; }
+    .error { background: #7f1d1d !important; border-color: #ef4444 !important; color: #fecaca; }
   </style>
 </head>
 <body>
 
-  <h2>QR Code Scanner</h2>
-  <div id="reader">Loading scanner...</div>
-  <div id="result"></div>
+  <h1>Student ID Attendance Scanner</h1>
+  <div class="scanner-box">
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+  <div id="status">Starting camera...</div>
 
   <script>
-    const resultDiv = document.getElementById('result');
-    const readerDiv = document.getElementById('reader');
+    // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL BELOW:
+    const APPS_SCRIPT_URL = "https://docs.google.com/spreadsheets/d/12pMHnvzYY5OM3mPLhs0YTtQjYHl77krVgBjD8dJCSI4/edit?gid=0#gid=0";
 
-    // Check if the scanner library loaded properly
-    if (typeof Html5QrcodeScanner === "undefined") {
-      readerDiv.innerHTML = "<p style='color:red;'>Error: Scanner library failed to load. Check your internet connection or ad-blocker.</p>";
-    } else {
-      readerDiv.innerHTML = ""; // Clear loading text
-      
-      function onScanSuccess(decodedText) {
-        resultDiv.style.display = 'block';
-        if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
-          resultDiv.innerHTML = `<strong>Scanned URL:</strong><br><a href="${decodedText}" target="_blank">${decodedText}</a>`;
-        } else {
-          resultDiv.innerHTML = `<strong>Scanned Text:</strong><br>${decodedText}`;
-        }
+    const video = document.getElementById("video");
+    const statusBox = document.getElementById("status");
+    let lastScanned = "";
+    let cooldown = false;
+
+    async function startScanner() {
+      // 1. Check if the browser supports the native BarcodeDetector API
+      if (!("BarcodeDetector" in window)) {
+        statusBox.className = "error";
+        statusBox.textContent = "Native BarcodeDetector not supported in this browser. Please open in Chrome or Edge.";
+        return;
       }
 
-      const html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        false
-      );
-      html5QrcodeScanner.render(onScanSuccess);
-    }
-  </script>
+      // 2. Initialize specifically for Code 39 (your school ID format)
+      const detector = new BarcodeDetector({ formats: ["code_39"] });
 
+      // 3. Request webcam access directly
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        video.srcObject = stream;
+        await video.play();
+        statusBox.textContent = "Ready — Hold Student ID Barcode to Camera";
+      } catch (err) {
+        statusBox.className = "error";
+        statusBox.textContent = "Camera blocked or unavailable: " + err.message;
+        return;
+      }
+
+      // 4. Continuously scan video frames
+      async function scanLoop() {
+        if (!cooldown && video.readyState === video.HAVE_ENOUGH_DATA) {
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes.length > 0) {
+              const studentId = barcodes[0].rawValue.trim();
+              if (studentId && studentId !== lastScanned) {
+                handleScan(studentId);
+              }
+            }
+          } catch (e) {
+            // Ignore single-frame read hiccups
+          }
+        }
+        requestAnimationFrame(scanLoop);
+      }
+
+      scanLoop();
+    }
+
+    async function handleScan(studentId) {
+      cooldown = true;
+      lastScanned = studentId;
+      statusBox.className = "";
+      statusBox.textContent = `Scanned ID: ${studentId} — Logging to Google Sheets...`;
+
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({ studentId: studentId })
+        });
+        const result = await response.json();
+
+        if (result.status === "success") {
+          statusBox.className = "success";
+          statusBox.textContent = `✓ Checked In: ${result.name} (${studentId})`;
+        } else {
+          statusBox.className = "error";
+          statusBox.textContent = `⚠ ID ${studentId} not found on roster`;
+        }
+      } catch (err) {
+        statusBox.className = "error";
+        statusBox.textContent = `Network error logging ${studentId}`;
+      }
+
+      // 2.5-second cooldown prevents accidental double-scans of the same card
+      setTimeout(() => {
+        cooldown = false;
+        lastScanned = "";
+      }, 2500);
+    }
+
+    startScanner();
+  </script>
 </body>
 </html>
