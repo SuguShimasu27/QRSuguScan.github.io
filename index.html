@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QR Code Scanner</title>
-  <script src="https://unpkg.com" type="text/javascript"></script>
+  <!-- Using Cloudflare CDN instead of unpkg -->
+  <script src="https://cloudflare.com"></script>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -22,6 +23,7 @@
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 10px;
     }
     #result {
       margin-top: 1.5rem;
@@ -40,30 +42,35 @@
 <body>
 
   <h2>QR Code Scanner</h2>
-  <div id="reader"></div>
+  <div id="reader">Loading scanner...</div>
   <div id="result"></div>
 
   <script>
     const resultDiv = document.getElementById('result');
+    const readerDiv = document.getElementById('reader');
 
-    function onScanSuccess(decodedText) {
-      resultDiv.style.display = 'block';
+    // Check if the scanner library loaded properly
+    if (typeof Html5QrcodeScanner === "undefined") {
+      readerDiv.innerHTML = "<p style='color:red;'>Error: Scanner library failed to load. Check your internet connection or ad-blocker.</p>";
+    } else {
+      readerDiv.innerHTML = ""; // Clear loading text
       
-      // Make it a clickable link if the QR code contains a URL
-      if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
-        resultDiv.innerHTML = `<strong>Scanned URL:</strong><br><a href="${decodedText}" target="_blank">${decodedText}</a>`;
-      } else {
-        resultDiv.innerHTML = `<strong>Scanned Text:</strong><br>${decodedText}`;
+      function onScanSuccess(decodedText) {
+        resultDiv.style.display = 'block';
+        if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+          resultDiv.innerHTML = `<strong>Scanned URL:</strong><br><a href="${decodedText}" target="_blank">${decodedText}</a>`;
+        } else {
+          resultDiv.innerHTML = `<strong>Scanned Text:</strong><br>${decodedText}`;
+        }
       }
-    }
 
-    // Initialize the scanner with a 250x250 scanning box
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
-    html5QrcodeScanner.render(onScanSuccess);
+      const html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
+      html5QrcodeScanner.render(onScanSuccess);
+    }
   </script>
 
 </body>
