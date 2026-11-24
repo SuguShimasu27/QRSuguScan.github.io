@@ -1,1 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Scanner</title>
+  <script src="https://unpkg.com" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    #reader {
+      width: 100%;
+      max-width: 400px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    #result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      width: 100%;
+      max-width: 400px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      word-break: break-all;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
 
+  <h2>QR Code Scanner</h2>
+  <div id="reader"></div>
+  <div id="result"></div>
+
+  <script>
+    const resultDiv = document.getElementById('result');
+
+    function onScanSuccess(decodedText) {
+      resultDiv.style.display = 'block';
+      
+      // Make it a clickable link if the QR code contains a URL
+      if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+        resultDiv.innerHTML = `<strong>Scanned URL:</strong><br><a href="${decodedText}" target="_blank">${decodedText}</a>`;
+      } else {
+        resultDiv.innerHTML = `<strong>Scanned Text:</strong><br>${decodedText}`;
+      }
+    }
+
+    // Initialize the scanner with a 250x250 scanning box
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      false
+    );
+    html5QrcodeScanner.render(onScanSuccess);
+  </script>
+
+</body>
+</html>
